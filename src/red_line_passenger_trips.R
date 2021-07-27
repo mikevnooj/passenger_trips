@@ -27,17 +27,17 @@ last_month_Avail  <- lubridate::floor_date(lubridate::floor_date(Sys.Date()
                                            ,unit = "month"
                                            )#end floor_date
 
-month <- "2021-04-01"
+#month <- "2021-04-01"
 
-this_month_Avail <- lubridate::floor_date(x = lubridate::as_date(month)
-                                         , unit = "month"
-                                         )
+#this_month_Avail <- lubridate::floor_date(x = lubridate::as_date(month)
+#                                         , unit = "month"
+#                                         )
 
-last_month_Avail <- lubridate::floor_date(lubridate::floor_date(lubridate::as_date(month)
-                                                               , unit = "month"
-                                                               ) - 1 #end lubridate::floor_date
-                                         ,unit = "month"
-                                         )#end lubridate::floor_date
+#last_month_Avail <- lubridate::floor_date(lubridate::floor_date(lubridate::as_date(month)
+#                                                               , unit = "month"
+#                                                               ) - 1 #end lubridate::floor_date
+#                                         ,unit = "month"
+#                                         )#end lubridate::floor_date
 
 
 
@@ -238,6 +238,7 @@ VMH_Raw_90[
   )
 ]
 
+zero_b_a_vehicles[,.N,Vehicle_ID]
 
 zero_b_a_vehicles <- VMH_Raw[, .(Boards = sum(Boards)
                                  , Alights = sum(Alights)
@@ -250,6 +251,8 @@ zero_b_a_vehicles <- VMH_Raw[, .(Boards = sum(Boards)
                                ][
                                  order(Transit_Day)
                                  ]
+
+
 
 
 VMH_Raw_90_no_zero <- VMH_Raw_90[ 
@@ -336,7 +339,6 @@ VMH_Raw_90_no_zero[
     ][
       ,pct_diff := (Boardings - Alightings)/ ((Boardings + Alightings)/2)
       ][]
-
 
 
 #get clean vmh
@@ -435,7 +437,7 @@ fwrite(invalid_dt_xuehao
        )
 
 
-# combine all the csvs for stat support -----------------------------------
+# # combine all the csvs for stat support -----------------------------------
 
 files <- paste0("data//processed//VMH_90_Valid_Invalid//"
                 , list.files("data//processed//VMH_90_Valid_Invalid"
@@ -452,26 +454,61 @@ read_plus <- function(file){
 
 apc_trips_data <- files %>%
   purrr::map_df(~read_plus(.))
-
-
-
-fwrite(apc_trips_data[Transit_Day < "2021-01-01"
-                  ][order(Transit_Day)]
-       , "data//processed//FY2020_apc_trips_data.csv"
-       )
+# 
+# 
+# 
+# #fwrite(apc_trips_data[Transit_Day < "2021-01-01"
+# #                  ][order(Transit_Day)]
+#      , "data//processed//FY2020_apc_trips_data.csv"
+#       )
 
 
 # get trips operated ------------------------------------------------------
 
-trips_operated_raw <- fread("data//raw//90_Trips_Operated_202104.csv")
+# paramaterize with dates
+# 
+# 
+# need to pull all the operated trips for a year
 
-trips_operated_raw_2 <- fread("data//raw//90_Trips_Operated_202105.csv")
+month_end <- as.IDate(last_month_Avail) + days_in_month(last_month_Avail) - 1
 
-trips_operated_raw <- rbind(trips_operated_raw, trips_operated_raw_2)
+year <- format(month_end,"%Y")
 
-trips_operated_raw[order(Date)]
+prev_month_end <- month_end - lubridate::days_in_month(month_end)
+
+#last_month_for_filepath <- format(last_month_Avail,"%Y%m")
+
+#month_before_last_for_filepath <- format(prev_month_end,"%Y%m")
+
+trips_operated_files <- paste0("data//raw//90_Trips_Operated//"
+                               , list.files("data//raw//90_Trips_Operated"
+                                            , pattern = year
+                                            )
+                               )
+
+trips_operated_raw <- purrr::map_df(trips_operated_files,fread)
+
+
+
+# trips_op_raw_month_before_last <- fread(paste0("data//raw//90_Trips_Operated_"
+#                                                ,month_before_last_for_filepath
+#                                                ,".csv"
+#                                                )
+#                                         )
+# 
+# trips_op_raw_last_month <- fread(paste0("data//raw//90_Trips_Operated_"
+#                                         , last_month_for_filepath
+#                                         , ".csv"
+#                                         )
+#                                  )
+
+# trips_operated_raw <- rbind(trips_op_raw_month_before_last
+#                             , trips_op_raw_last_month
+#                             )
 
 trips_operated <- trips_operated_raw[`In-S` == "TRUE" & Cancelled == "FALSE"]
+
+
 
 trips_operated[,From_To := paste0(From,To)]
 
@@ -505,7 +542,11 @@ northbound <- c("M38COLL66"
                 , "MAECOLL66"
                 , "DTC-GM38"
                 , "DTC-G96C"
-                , "M3896C")
+                , "M3896C"
+                , "UOICOLL64"
+                , "DTC-GCOLL64"
+                , "M38COLL64"
+                )
 
 trips_operated_90[, Inbound_Outbound := fifelse(From_To %in% northbound
                                                 , 0
@@ -514,7 +555,7 @@ trips_operated_90[, Inbound_Outbound := fifelse(From_To %in% northbound
                   ]
 
 
-# good check
+# good check, 0 north
 trips_operated_90[
   , .N
   , .(Inbound_Outbound
@@ -524,21 +565,28 @@ trips_operated_90[
     ]
 
 
-trips_operated_90[, c("time","aorp") := tstrsplit(trips_operated_90$Start,"[a,p,x,;]")]
+trips_operated_90[, c("time"
+                      , "aorp"
+                      ) := tstrsplit(trips_operated_90$Start
+                                     , "[a,p,x,;]"
+                                     )
+                  ]
 
-trips_operated_90[,aorp := fifelse(Start %like% "p"
-                                   ,"p"
-                                   ,"a"
-                                   )
+trips_operated_90[, aorp := fifelse(Start %like% "p"
+                                    , "p"
+                                    , "a"
+                                    )
                   ][, time := as.integer(time)
-                    ][, time := fifelse(Start %like% "p" & time < 1200 | Start %like% "x"
+                    ][, time := fifelse(Start %like% "p" & 
+                                          time < 1200 
+                                        | Start %like% "x"
                                         , time + 1200
                                         , time
                                         , 0
                                         )
                       ][, time := fifelse(time > 2359
-                                          ,time - 2400
-                                          ,time
+                                          , time - 2400
+                                          , time
                                           )
                         ][, time := as.ITime(strptime(sprintf('%04d'
                                                               , time
@@ -583,7 +631,14 @@ trips_operated_90[, trip_start_hour := data.table::hour(time)
                                                    )
                       ]
 
-trips_operated_90[,.N,Transit_Day][order(Transit_Day)]
+trips_operated_90[,.N,Transit_Day][order(Transit_Day)] %>% View()
+
+#gotta remove dupes
+
+trips_operated_90 <- unique(trips_operated_90
+                            , by = "AdHocTripNumber"
+                            )
+
 
 
 # begin the expansion -----------------------------------------------------
@@ -591,22 +646,23 @@ trips_operated_90[,.N,Transit_Day][order(Transit_Day)]
 # first get averages by type and hour and direction
 
 
-apc_trips_valid <- apc_trips_data[!apc_trips_data[Transit_Day <= "2020-01-31" & 
-                                                    Boards > 757 | 
-                                                    Transit_Day %between% c("2020-02-01"
-                                                                            , "2020-02-29"
-                                                                            ) & 
-                                                    Boards > 1000                                                   
-                                                  ]
-                                  , on = c("AdHocTripNumber")
-                                  ][Transit_Day >= "2021-01-01"
-                                    ][Inbound_Outbound != 9 &
-                                        Inbound_Outbound != 14
-                                      ][, trip_start_hour := fifelse(trip_start_hour == 4
-                                                                     , 5
-                                                                     , trip_start_hour
-                                                                     )
-                                        ]
+apc_trips_valid <- 
+  apc_trips_data[!apc_trips_data[Transit_Day <= "2020-01-31" & 
+                                   Boards > 757 | 
+                                   Transit_Day %between% c("2020-02-01"
+                                                           , "2020-02-29"
+                                                           ) & 
+                                   Boards > 1000                                                   
+                                 ]
+                 , on = c("AdHocTripNumber")
+                 ][Transit_Day >= lubridate::floor_date(month_end,"year") #this needs to be a year
+                   ][Inbound_Outbound != 9 &
+                       Inbound_Outbound != 14
+                     ][, trip_start_hour := fifelse(trip_start_hour == 4
+                                                    , 5
+                                                    , trip_start_hour
+                                                    )
+                       ]
 
 apc_boardings_by_stratum <- apc_trips_valid[valid_invalid == "valid"
                                              ,.(boards = sum(Boards)
@@ -658,7 +714,7 @@ expanded_operated_trips <- merge.data.table(trips_operated_per_stratum
 # function development ----------------------------------------------------
 
 
-month_end <- as.IDate("2021-04-31")
+month_end <- as.IDate("2021-06-30")
 
 month_number <- month(month_end)
 
@@ -678,6 +734,7 @@ apc_boardings_by_stratum <- apc_trips_valid[valid_invalid == "valid" & Transit_D
                                                       , trip_start_hour
                                                       )
                                                 ]
+
 
 trips_operated_per_stratum <- trips_operated_90[Transit_Day <= month_end
   , .(trips_operated = .N) 
@@ -765,13 +822,7 @@ fwrite(ytd_month_summary
 # second section function dev ---------------------------------------------
 
 
-month_end <- as.IDate("2021-05-31")
 
-month_number <- month(month_end)
-
-
-#month_number > 1
-prev_month_end <- month_end - lubridate::days_in_month(month_end)
 
 
 apc_boardings_by_stratum <- apc_trips_valid[valid_invalid == "valid" & Transit_Day <= month_end
@@ -835,7 +886,8 @@ expanded_operated_trips <- merge.data.table(trips_operated_per_stratum
 
 
 #get service table
-service_table <- trips_operated_90[Transit_Day <= month_end & Transit_Day > prev_month_end][,.(service_days_in_month = uniqueN(Transit_Day)),service_type]
+service_table <- trips_operated_90[Transit_Day <= month_end 
+                                   & Transit_Day > prev_month_end][,.(service_days_in_month = uniqueN(Transit_Day)),service_type]
 
 
 
@@ -892,7 +944,9 @@ DimTrip <- tbl(con_dw
   collect() %>%
   data.table()
 
-trips_operated_90[,.(unique(`Internal trp number`))][V1 %in% DimTrip$PermanentTripNumber] %>% left_join(trips_operated_90[,.(unique(`Internal trp number`))][V1 %in% DimTrip$TripExternalID])
-trips_operated_90[,.(unique(`Internal trp number`))][V1 %in% DimTrip$TripInternalNumber]
 
-DimTrip[is.na(TripInternalNumber)]
+trips_operated_90[,.(unique(`Internal trp number`))][V1 %in% DimTrip$PermanentTripNumber][V1 %in% trips_operated_90[,.(unique(`Internal trp number`))][V1 %in% DimTrip$TripInternalNumber]$V1]
+
+trips_operated_90[,.(unique(`Internal trp number`))][V1 %in% DimTrip$TripInternalNumber]$V1
+
+DimTrip[!is.na(TripInternalNumber)]

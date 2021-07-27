@@ -27,4 +27,3 @@ add_transit_day <- function(x,cutoff_time){
       ]
   
 }
-
