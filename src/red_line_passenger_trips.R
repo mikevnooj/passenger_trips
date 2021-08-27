@@ -168,18 +168,18 @@ VMH_Raw_90 <- VMH_Raw[Latitude > 39.709468 & Latitude < 39.877512
 #do transit day
 
 
-VMH_Raw_90[
-  , DateTest := data.table::fifelse(
-    data.table::as.ITime(Time) < Transit_Day_Cutoff
-    , 1
-    , 0
-    ) #end fifelse()
-  ][
-    , Transit_Day := data.table::fifelse(DateTest == 1
-                             ,data.table::as.IDate(Time)-1
-                             ,data.table::as.IDate(Time)
-                             )
-    ]
+# VMH_Raw_90[
+#   , DateTest := data.table::fifelse(
+#     data.table::as.ITime(Time) < Transit_Day_Cutoff
+#     , 1
+#     , 0
+#     ) #end fifelse()
+#   ][
+#     , Transit_Day := data.table::fifelse(DateTest == 1
+#                              ,data.table::as.IDate(Time)-1
+#                              ,data.table::as.IDate(Time)
+#                              )
+#     ]
 
 VMH_Raw_90 <- VMH_Raw_90[Transit_Day >= last_month_Avail &
                            Transit_Day < this_month_Avail
@@ -255,6 +255,8 @@ VMH_Raw_90[, AdHocTripNumber := stringr::str_c(
   , Vehicle_ID
   )
   ]
+
+VMH_Raw_90[,uniqueN(Vehicle_ID),.(Inbound_Outbound,Transit_Day,Trip)]
 
 zero_b_a_vehicles <- VMH_Raw[, .(Boards = sum(Boards)
                                  , Alights = sum(Alights)
@@ -401,15 +403,15 @@ VMH_90_invalid <- fsetdiff(VMH_Raw_90, VMH_90_clean)
 
 
 # expansion method --------------------------------------------------------
-# valid_dt <- VMH_90_clean[, trip_start_hour := hour(min(Time))
-#                          , AdHocTripNumber
-#                          ][, .(VBoard = sum(Boards)
-#                                , VTrip = uniqueN(AdHocTripNumber))
-#                            , .(Inbound_Outbound
-#                                , trip_start_hour
-#                                , Service_Type
-#                                )
-#                            ]
+valid_dt <- VMH_90_clean[, trip_start_hour := hour(min(Time))
+                         , AdHocTripNumber
+                         ][, .(VBoard = sum(Boards)
+                               , VTrip = uniqueN(AdHocTripNumber))
+                           , .(Inbound_Outbound
+                               , trip_start_hour
+                               , Service_Type
+                               )
+                           ]
 
 valid_dt_xuehao <- VMH_90_clean[, .(Boards = sum(Boards))
                                 , .(Transit_Day
